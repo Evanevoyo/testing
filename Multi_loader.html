@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thingamajig</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+* {
+margin: 0;
+padding: 0;
+box-sizing: border-box;
+}
+
+:root {
+--primary: #c27c15;
+--border-color: rgba(194, 124, 21, 1);
+}
+
+body {
+font-family: 'Inter', sans-serif;
+background: #000;
+color: white;
+overflow: hidden;
+}
+
+.container {
+width: 100vw;
+height: 100vh;
+display: flex;
+flex-direction: column;
+justify-content: center;
+align-items: center;
+gap: 20px;
+}
+
+.launch-btn {
+background: rgba(15,15,15,1);
+border: 2px solid var(--border-color);
+border-radius: 12px;
+padding: 1rem 3rem;
+font-size: 1.2rem;
+letter-spacing: 3px;
+color: white;
+cursor: pointer;
+transition: 0.25s ease;
+text-transform: uppercase;
+min-width: 320px;
+
+box-shadow: 0 4px 20px rgba(194, 124, 21, 0.15);
+}
+
+.launch-btn:hover {
+color: var(--primary);
+transform: translateY(-2px);
+box-shadow:
+0 0 10px rgba(194, 124, 21, 0.35),
+0 0 25px rgba(194, 124, 21, 0.25),
+0 12px 35px rgba(0, 0, 0, 0.6);
+}
+
+.dropdown {
+padding: 8px 12px;
+border-radius: 6px;
+border: 2px solid var(--border-color);
+background: rgba(15,15,15,1);
+color: white;
+min-width: 280px;
+font-family: 'Inter', sans-serif;
+cursor: pointer;
+box-shadow: 0 2px 12px rgba(194, 124, 21, 0.08);
+}
+
+button:focus,
+select:focus {
+outline: none;
+box-shadow: none;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<button class="launch-btn" id="launchBtn">
+Open site
+</button>
+
+<select id="siteSelect" class="dropdown">
+<option>Loading...</option>
+</select>
+
+</div>
+
+<script>
+const select = document.getElementById('siteSelect');
+const btn = document.getElementById('launchBtn');
+
+const URL = "https://raw.githubusercontent.com/Evanevoyo/testing/main/versions.hjson";
+
+async function loadDropdown() {
+try {
+const res = await fetch(URL);
+const text = await res.text();
+
+const data = JSON.parse(text);
+
+select.innerHTML = "";
+
+data.forEach(item => {
+const opt = document.createElement("option");
+opt.value = item.url;
+opt.textContent = item.name;
+select.appendChild(opt);
+});
+
+} catch (err) {
+console.error(err);
+select.innerHTML = "<option>Failed to load</option>";
+}
+}
+
+btn.addEventListener("click", () => {
+const url = select.value;
+if (!url) return;
+
+const win = window.open("about:blank", "_blank");
+if (!win) return;
+
+win.document.open();
+win.document.write(`
+<!DOCTYPE html>
+<html>
+<body style="margin:0;background:black;color:white;display:flex;justify-content:center;align-items:center;height:100vh;">
+<script>
+fetch("${url}")
+.then(r => r.text())
+.then(html => {
+document.write(html);
+});
+<\/script>
+</body>
+</html>
+`);
+win.document.close();
+});
+
+loadDropdown();
+</script>
+
+</body>
+</html>
