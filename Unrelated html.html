@@ -1,0 +1,320 @@
+# Multi Image Pixel Art Palette Tool (Single HTML File)
+
+Save this as `index.html` and open it in a browser.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixel Palette Tool</title>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #111;
+    color: white;
+    margin: 0;
+    padding: 20px;
+}
+
+h1 {
+    margin-top: 0;
+}
+
+.controls {
+    background: #1d1d1d;
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
+label {
+    display: block;
+    margin-top: 12px;
+    margin-bottom: 6px;
+}
+
+input, textarea, button {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+textarea {
+    height: 100px;
+    resize: vertical;
+    background: #222;
+    color: white;
+    border: 1px solid #444;
+    padding: 10px;
+}
+
+button {
+    margin-top: 15px;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: #4f8cff;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #6aa0ff;
+}
+
+.output {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.card {
+    background: #1b1b1b;
+    padding: 10px;
+    border-radius: 12px;
+}
+
+canvas {
+    width: 100%;
+    image-rendering: pixelated;
+    border-radius: 8px;
+    background: black;
+}
+
+.small {
+    opacity: 0.7;
+    font-size: 13px;
+}
+</style>
+</head>
+<body>
+
+<h1>Multi Image Pixel Art Tool</h1>
+
+<div class="controls">
+
+<label>Upload JPG Images</label>
+<input type="file" id="upload" multiple accept=".jpg,.jpeg">
+
+<label>Pixel Width</label>
+<input type="range" id="pixelSize" min="8" max="256" value="64">
+<div id="pixelLabel">64</div>
+
+<label>Custom Palette (one hex color per line)</label>
+<textarea id="paletteInput">#000000
+#ffffff
+#ff0000
+#00ff00
+#0000ff</textarea>
+
+<div class="small">
+Every pixel will become the nearest color from this palette.
+</div>
+
+<button id="processBtn">Generate Pixel Art</button>
+<button id="downloadZipBtn">Download ZIP</button>
+
+</div>
+
+<div class="output" id="output"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<script>
+const upload = document.getElementById('upload');
+const output = document.getElementById('output');
+const processBtn = document.getElementById('processBtn');
+const pixelSize = document.getElementById('pixelSize');
+const pixelLabel = document.getElementById('pixelLabel');
+const paletteInput = document.getElementById('paletteInput');
+const downloadZipBtn = document.getElementById('downloadZipBtn');
+
+const generatedImages = [];
+
+pixelSize.addEventListener('input', () => {
+    pixelLabel.textContent = pixelSize.value;
+});
+
+function hexToRgb(hex) {
+    hex = hex.replace('#', '');
+
+    return {
+        r: parseInt(hex.substring(0,2), 16),
+        g: parseInt(hex.substring(2,4), 16),
+        b: parseInt(hex.substring(4,6), 16)
+    };
+}
+
+function distance(a, b) {
+    return Math.sqrt(
+        (a.r - b.r) ** 2 +
+        (a.g - b.g) ** 2 +
+        (a.b - b.b) ** 2
+    );
+}
+
+function nearestColor(color, palette) {
+    let best = palette[0];
+    let bestDist = Infinity;
+
+    for (const p of palette) {
+        const d = distance(color, p);
+
+        if (d < bestDist) {
+            bestDist = d;
+            best = p;
+        }
+    }
+
+    return best;
+}
+
+processBtn.addEventListener('click', async () => {
+
+    output.innerHTML = '';
+
+    const files = [...upload.files];
+
+    if (files.length === 0) {
+        alert('Upload some JPG files first');
+        return;
+    }
+
+    const palette = paletteInput.value
+        .split('\n')
+        .map(v => v.trim())
+        .filter(v => v)
+        .map(hexToRgb);
+
+    for (const file of files) {
+
+        const img = new Image();
+        img.src = URL.createObjectURL(file);
+
+        await new Promise(resolve => {
+            img.onload = resolve;
+        });
+
+        const smallCanvas = document.createElement('canvas');
+        const sctx = smallCanvas.getContext('2d');
+
+        const pixelWidth = parseInt(pixelSize.value);
+        const ratio = img.height / img.width;
+        const pixelHeight = Math.max(1, Math.round(pixelWidth * ratio));
+
+        smallCanvas.width = pixelWidth;
+        smallCanvas.height = pixelHeight;
+
+        sctx.drawImage(img, 0, 0, pixelWidth, pixelHeight);
+
+        const imageData = sctx.getImageData(0, 0, pixelWidth, pixelHeight);
+        const data = imageData.data;
+
+        for (let i = 0; i < data.length; i += 4) {
+
+            const color = {
+                r: data[i],
+                g: data[i + 1],
+                b: data[i + 2]
+            };
+
+            const nearest = nearestColor(color, palette);
+
+            data[i] = nearest.r;
+            data[i + 1] = nearest.g;
+            data[i + 2] = nearest.b;
+        }
+
+        sctx.putImageData(imageData, 0, 0);
+
+        const finalCanvas = document.createElement('canvas');
+        const fctx = finalCanvas.getContext('2d');
+
+        const scale = 8;
+
+        finalCanvas.width = pixelWidth * scale;
+        finalCanvas.height = pixelHeight * scale;
+
+        fctx.imageSmoothingEnabled = false;
+
+        fctx.drawImage(
+            smallCanvas,
+            0,
+            0,
+            finalCanvas.width,
+            finalCanvas.height
+        );
+
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const title = document.createElement('div');
+        title.textContent = file.name;
+
+        const downloadBtn = document.createElement('button');
+        downloadBtn.textContent = 'Download PNG';
+
+        downloadBtn.onclick = () => {
+            const a = document.createElement('a');
+            a.href = finalCanvas.toDataURL('image/png');
+            a.download = file.name.replace(/\.jpe?g/i, '') + '_pixel.png';
+            a.click();
+        };
+
+        card.appendChild(title);
+        card.appendChild(finalCanvas);
+        card.appendChild(downloadBtn);
+
+        output.appendChild(card);
+
+        generatedImages.push({
+            name: file.name.replace(/\\.jpe?g/i, '') + '_pixel.png',
+            data: finalCanvas.toDataURL('image/png')
+        });
+    }
+});
+
+downloadZipBtn.addEventListener('click', async () => {
+
+    if (generatedImages.length === 0) {
+        alert('Generate images first');
+        return;
+    }
+
+    const zip = new JSZip();
+
+    for (const img of generatedImages) {
+
+        const base64 = img.data.split(',')[1];
+
+        zip.file(img.name, base64, {
+            base64: true
+        });
+    }
+
+    const blob = await zip.generateAsync({
+        type: 'blob'
+    });
+
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'pixel_art_images.zip';
+    a.click();
+});
+</script>
+
+</body>
+</html>
+```
+
+Features:
+
+* Upload multiple JPG files
+* Converts each image into pixel art
+* Custom color palette
+* Adjustable pixel size
+* Download generated PNGs
+* Uses nearest-color palette matching
